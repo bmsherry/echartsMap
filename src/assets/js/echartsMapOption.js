@@ -83,6 +83,7 @@ export const getMapOption = (opt) => {
     geo: {
       map: opt.mapName,
       zoom: 1,
+      roam: true,
       label: {
         show: true,
         color: "#fff"
