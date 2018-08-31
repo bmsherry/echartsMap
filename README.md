@@ -6,12 +6,12 @@
 
 ``` bash
 # install dependencies
-npm install
+npm install or yarn install
 
 # serve with hot reload at localhost:8080
 
 # 使用的时候请修改main.js中高德的key值。切换成你自己的key值
-npm run dev
+npm run dev or yarn run dev
 
 ```
 
