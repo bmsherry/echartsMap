@@ -77,7 +77,7 @@ export const getMapOption = (opt) => {
     nextLevel: opt.nextLevel,
     adcode: opt.mapName,
     backgroundColor: opt.bgColor,
-    geo: {
+    geo3D: {
       map: opt.mapName,
       zoom: 1,
       roam: true,
@@ -142,7 +142,7 @@ export const getMapOption = (opt) => {
       }
     },
     series: [{
-        type: 'map',
+        type: 'map3D',
         map: opt.mapName,
         geoIndex: 0,
         aspectScale: 0.75, //长宽比

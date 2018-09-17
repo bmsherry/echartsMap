@@ -7,7 +7,9 @@
       <div class="canvaszz"> </div>
       <canvas id="starCanvas" ref="starCanvas"></canvas>
       <div class="top">
-        <div class="topimg"></div>
+        <div class="topimg">
+          <div class="demo">地图DEMO</div>
+        </div>
       </div>
       <div class="leftbottom">
         <div class="echartsmap">
@@ -682,6 +684,13 @@ export default {
         height: 80px;
         background: url("./assets/image/castscreentitle.png");
         margin: 0 auto;
+        .demo {
+          margin: 0 auto;
+          font-size: 36px;
+          font-weight: bold;
+          color: #25c4d3;
+          line-height:80px;
+        }
       }
     }
     .lefttop {
@@ -766,8 +775,7 @@ export default {
               display: flex;
               display: -webkit-flex;
               .bartitleicon {
-                background: url("./assets/image/smokeicon.png") 0 0
-                  no-repeat;
+                background: url("./assets/image/smokeicon.png") 0 0 no-repeat;
                 width: 30px;
                 height: 30px;
                 margin-left: 30px;
