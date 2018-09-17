@@ -1,31 +1,92 @@
 <template>
-    <div class="castscreen">
-        <div class="echartsmap">
-            <div class="mapbreadcrumbcontainer">
-                <div class="geography" @click="clickBreadcrumbMap(0)">中国</div>
-                <div v-if="currentProvince">></div>
-                <div v-if="currentProvince" class="geography" @click="clickBreadcrumbMap(1)">{{currentProvince}}</div>
-                <div v-if="currentCity">></div>
-                <div v-if="currentCity" class="geography" @click="clickBreadcrumbMap(2)">{{currentCity}}</div>
-            </div>
-            <div id="echarts-castscreen">
-            </div>
-        </div>
+  <div class="castscreen">
+    <div id="loadingcanvas" v-show="loadingcanvas">
+      <canvas ref="c"></canvas>
     </div>
+    <div class="left" v-if="!loadingcanvas">
+      <div class="canvaszz"> </div>
+      <canvas id="starCanvas" ref="starCanvas"></canvas>
+      <div class="top">
+        <div class="topimg"></div>
+      </div>
+      <div class="leftbottom">
+        <div class="echartsmap">
+          <div class="mapbreadcrumbbox">
+            <div class="mapbreadcrumbboxtop"></div>
+            <div class="mapbreadcrumbboxleft"></div>
+            <div class="mapbreadcrumbcontainer">
+              <div class="mapbreadcrumbicon"></div>
+              <div class="geography" @click="clickBreadcrumbMap(0)">中国</div>
+              <div v-if="currentProvince" class="breadgeography">></div>
+              <div v-if="currentProvince" class="geography" @click="clickBreadcrumbMap(1)">{{currentProvince}}</div>
+              <div v-if="currentCity" class="breadgeography">></div>
+              <div v-if="currentCity" class="geography" @click="clickBreadcrumbMap(2)">{{currentCity}}</div>
+            </div>
+            <div class="mapbreadcrumbboxright"></div>
+          </div>
+
+          <div id="echarts-castscreen">
+          </div>
+          <div class="rightbox">
+            <div class="devicedata">
+              <div class="devicecontainer">
+                <div class="devicedataall devicecontainersame">
+                  <div class="devicecontainersame-top">{{deviceTotal}}</div>
+                  <div class="devicecontainersame-bottom">设备总数</div>
+                </div>
+                <div class="alarmdataall devicecontainersame">
+                  <div class="devicecontainersame-top">{{alarmTotal}}</div>
+                  <div class="devicecontainersame-bottom">总告警次数</div>
+                </div>
+              </div>
+            </div>
+            <div class="barcontainer">
+              <div class="bartitle">
+                <div class="bartitleicon"></div>
+                <div class="bartitlecontent">设备区域分布 (台)</div>
+              </div>
+              <div class="echarts-castscreen-barbox" ref="barbox">
+                <div id="echarts-castscreen-bar" ref="castscreenbar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 <script>
 import throttle from "lodash.throttle";
-import { handleEvents, getMapOption } from "./assets/js/echartsMapOption";
+import {
+  handleEvents,
+  getMapOption,
+  convertBarData,
+  getBarOption
+} from "./assets/js/echartsMapOption";
 import { convertIMapToEcharts } from "./assets/js/convertGeoJSON";
-import axios from "axios";
+import { loading } from "./assets/js/loading";
+import starMap from "./assets/js/starMap";
 
+const tw = require("./assets/710000.json");
 export default {
   name: "CastScreen",
   data() {
-    const self = this;
     return {
+      barHeight: 0,
+      barOutHeight: 0,
+      deviceTotal: 1117,
+      alarmTotal: 1248,
+      timeTicket: null,
+      timeoutTimer: null,
+      barTimer: null,
+      intervalTimer: null,
+      loadingcanvas: false,
+      options: {},
+      count: 0, //控制tooltip自动播放到第几个
       myMap: null,
+      barCharts: null,
       currentProvince: 0,
       currentCity: 0,
       spcialProvinceJSONMap: {},
@@ -36,41 +97,66 @@ export default {
         { id: 360100, name: "南昌市", value: [115.89, 28.48] },
         { id: 360200, name: "景德镇", value: [117.28, 29.09] }
       ],
-      alarmData: {
-        360700: 199,
-        360800: 39,
-        361100: 152,
-        360400: 299,
-        361000: 89,
-        360900: 52,
-        360100: 9,
-        360200: 352,
-        360300: 99,
-        360600: 39,
-        360500: 480
-      }
+      deviceData: {}
     };
   },
   mounted() {
-    this.timer = setTimeout(() => {
+    const self = this;
+    this.loadingcanvas = true;
+    loading(this.$refs["c"]);
+    this.timeoutTimer = window.setTimeout(function() {
       window.AMapUI.loadUI(["geo/DistrictExplorer"], DistrictExplorer => {
         //启动页面
-        this.districtExplorer = new DistrictExplorer();
-
+        self.convertAreaDeviceData();
+        self.districtExplorer = new DistrictExplorer();
         const adcode = 100000; //全国的区划编码
-        this.getMapJson(adcode, this.drawMap);
+        self.getMapJson(adcode, self.drawMap);
+        self.$nextTick(() => {
+          self.loadingcanvas = false;
+          self.$nextTick(() => {
+            self.getCastBarBoxHeight();
+            const canvas = self.$refs["starCanvas"];
+            //画星空
+            starMap(canvas);
+            //定时调后端接口刷新数据
+            self.intervalTimer = setInterval(async () => {
+              self.intervalOpera(self.opt.length);
+            }, 300000);
+          });
+        });
       });
     }, 1000);
     this._initIndex();
   },
   methods: {
+    //增加轮播tooltip
+    intervalToolTip(options) {
+      let count = 0;
+      const dataLength = options.series[0].data.length;
+      this.timeTicket && window.clearInterval(this.timeTicket);
+      this.timeTicket = window.setInterval(() => {
+        if (count === dataLength) {
+          count = 0;
+        }
+        this.myMap.dispatchAction({
+          type: "downplay",
+          seriesIndex: 0
+        });
+        this.myMap.dispatchAction({
+          type: "highlight",
+          seriesIndex: 0,
+          dataIndex: count % dataLength
+        });
+        this.myMap.dispatchAction({
+          type: "showTip",
+          seriesIndex: 0,
+          dataIndex: count % dataLength
+        });
+        count++;
+      }, 2000);
+    },
     getJSONspecailOpear(adcode, areaNode) {
-      if (adcode === 100000) {
-        //台湾省
-        this.spcialProvinceJSONMap[710000] = this.spcialProvinceJSONMap[710000]
-          ? this.spcialProvinceJSONMap[710000]
-          : areaNode.getSubFeatureByAdcode(710000);
-      } else if (adcode === 440000) {
+      if (adcode === 440000) {
         this.spcialCityJSONMap[441900] = this.spcialCityJSONMap[441900]
           ? this.spcialCityJSONMap[441900]
           : areaNode.getSubFeatureByAdcode(441900);
@@ -87,7 +173,6 @@ export default {
     getMapJson(adcode, cb, payload) {
       this.districtExplorer.loadAreaNode(adcode, (error, areaNode) => {
         if (error) {
-          console.error(error);
           return;
         }
         const geoJSON = areaNode.getSubFeatures();
@@ -113,8 +198,8 @@ export default {
         type: "FeatureCollection"
       };
       json.features.forEach(function(feature) {
-        let encodeOffsets = (feature.geometry.encodeOffsets = []);
-        let coordinates = feature.geometry.coordinates;
+        const encodeOffsets = (feature.geometry.encodeOffsets = []);
+        const coordinates = feature.geometry.coordinates;
         if (feature.geometry.type === "Polygon") {
           coordinates.forEach((coordinate, idx) => {
             coordinates[idx] = convertIMapToEcharts.encodePolygon(
@@ -136,7 +221,6 @@ export default {
         feature.id = feature.properties.adcode;
         feature.level = feature.properties.level;
       });
-      console.log(json);
       return json;
     },
     async drawMap(json) {
@@ -152,22 +236,200 @@ export default {
       this.ids = [100000];
       this.opt = [
         {
-          bgColor: "#154e90",
           mapName: 100000,
           mapData: mapData,
-          alarmData: this.alarmData,
+          deviceData: this.deviceData,
           data: data,
           goDown: goDown,
-          realtimeAlarmData: this.comfirmInMap()
+          realtimeAlarmData: this.comfirmInMap(),
+          nextLevel: "province"
         }
       ];
-      const options = getMapOption(this.opt[0]);
-      this.myMap.setOption(options);
+      this.options = getMapOption(this.opt[0]);
+      this.setBar(data);
+      this.myMap.setOption(this.options);
+      this.intervalToolTip(this.options);
       this.mapBindClick();
+      this.mapBindMouseEvent();
+    },
+    setBar(data) {
+      this.barTimer ? clearInterval(this.barTimer) : null;
+      const len = data.length;
+      this.barHeight = `${len * 40 + 50}px`;
+      this.barCharts = this.$echarts.init(
+        document.getElementById("echarts-castscreen-bar")
+      );
+      const barData = convertBarData(data, "barData");
+      const yData = convertBarData(data);
+      const barDataCopy = [...barData];
+      const yDataCopy = [...yData];
+      const convertData = getBarOption(barData, yData);
+      this.barCharts.setOption(convertData);
+      this.barCharts.resize({ height: this.barHeight });
+      if (parseFloat(this.barHeight) > parseFloat(this.barOutHeight)) {
+        this.barTimer = setInterval(() => {
+          barDataCopy.unshift(barDataCopy.pop());
+          yDataCopy.unshift(yDataCopy.pop());
+          const convertData = getBarOption(barDataCopy, yDataCopy);
+          this.barCharts.setOption(convertData);
+        }, 3000);
+      }
+    },
+    //循环调后端接口后的操作
+    intervalOpera(len) {
+      this.options = this.convertIntervalData(getMapOption(this.opt[len - 1]));
+      this.myMap.clear();
+      this.myMap.setOption(this.options);
+      this.setBar(this.options.series[0].data);
+      this.intervalToolTip(this.options);
+    },
+    convertIntervalData(options) {
+      options.series[0].data.map(val => {
+        if (this.deviceData[val.id]) {
+          val.deviceNum = this.deviceData[val.id];
+        }
+      });
+      return options;
+    },
+    convertAreaDeviceData() {
+      //mock
+      this.mock = [
+        {
+          adcode: 440000,
+          address: "广东省",
+          count: 92
+        },
+        {
+          adcode: 410000,
+          address: "河南省",
+          count: 176
+        },
+        {
+          adcode: 150000,
+          address: "内蒙古自治区",
+          count: 117
+        },
+        {
+          adcode: 230000,
+          address: "黑龙江省",
+          count: 143
+        },
+        {
+          adcode: 650000,
+          address: "新疆维吾尔自治区",
+          count: 120
+        },
+        {
+          adcode: 420000,
+          address: "湖北省",
+          count: 117
+        },
+        {
+          adcode: 210000,
+          address: "辽宁省",
+          count: 115
+        },
+        {
+          adcode: 370000,
+          address: "山东省",
+          count: 155
+        },
+        {
+          adcode: 610000,
+          address: "陕西省",
+          count: 118
+        },
+        {
+          adcode: 310000,
+          address: "上海市",
+          count: 19
+        },
+        {
+          adcode: 520000,
+          address: "贵州省",
+          count: 98
+        },
+        {
+          adcode: 500000,
+          address: "重庆市",
+          count: 41
+        },
+        {
+          adcode: 540000,
+          address: "西藏自治区",
+          count: 83
+        },
+        {
+          adcode: 340000,
+          address: "安徽省",
+          count: 123
+        },
+        {
+          adcode: 350000,
+          address: "福建省",
+          count: 95
+        },
+        {
+          adcode: 430000,
+          address: "湖南省",
+          count: 137
+        },
+        {
+          adcode: 460000,
+          address: "海南省",
+          count: 31
+        },
+        {
+          adcode: 320000,
+          address: "江苏省",
+          count: 110
+        },
+        {
+          adcode: 630000,
+          address: "青海省",
+          count: 53
+        },
+        {
+          adcode: 450000,
+          address: "广西壮族自治区",
+          count: 126
+        },
+        {
+          adcode: 640000,
+          address: "宁夏回族自治区",
+          count: 28
+        },
+        {
+          adcode: 360000,
+          address: "江西省",
+          count: 112
+        },
+        {
+          adcode: 330000,
+          address: "浙江省",
+          count: 101
+        },
+        {
+          adcode: 130000,
+          address: "河北省",
+          count: 180
+        },
+        {
+          adcode: 810000,
+          address: "香港特别行政区",
+          count: 21
+        }
+      ];
+      this.deviceData = {};
+      this.mock.map(val => {
+        this.deviceData[val.adcode] = ++val.count;
+      });
     },
     clickBreadcrumbMap(level) {
       //说明点击的不是最下层 才操作
       if (this.opt.length !== level + 1) {
+        //点击面包屑 获取设备数量
+        this.convertAreaDeviceData();
         if (level === 0) {
           this.currentProvince = "";
           this.currentCity = "";
@@ -176,7 +438,10 @@ export default {
         }
         this.opt.length = level + 1;
         this.ids.length = level + 1;
-        handleEvents.resetOption(this.myMap, getMapOption(this.opt[level]));
+        this.options = getMapOption(this.opt[level]);
+        handleEvents.resetOption(this.myMap, this.options);
+        this.setBar(this.options.series[0].data);
+        this.intervalToolTip(this.options);
       }
     },
     setBreadcrumb(level, name) {
@@ -207,12 +472,7 @@ export default {
                 params
               );
             } else if (params.data.id === 710000) {
-              this.getClickDataOpera(
-                this.convertGeoJSON([
-                  this.spcialProvinceJSONMap[params.data.id]
-                ]),
-                params
-              );
+              this.getClickDataOpera(this.convertGeoJSON(tw.features), params);
             } else {
               this.getMapJson(params.data.id, this.getClickDataOpera, params);
             }
@@ -220,9 +480,43 @@ export default {
         }
       });
     },
+    mapBindMouseEvent() {
+      const self = this;
+      this.myMap.on("mouseover", function(params) {
+        self.timeTicket && window.clearInterval(self.timeTicket);
+        self.myMap.dispatchAction({
+          type: "downplay",
+          seriesIndex: 0
+        });
+        self.myMap.dispatchAction({
+          type: "highlight",
+          seriesIndex: 0,
+          dataIndex: params.dataIndex
+        });
+        self.myMap.dispatchAction({
+          type: "showTip",
+          seriesIndex: 0,
+          dataIndex: params.dataIndex
+        });
+      });
+      this.myMap.on("mouseout", function(params) {
+        self.timeTicket && window.clearInterval(self.timeTicket);
+        self.intervalToolTip(self.options);
+      });
+    },
+    getNextLevel(json) {
+      let nextLevel = null;
+      if (json.features && json.features.length > 0) {
+        nextLevel = json.features[0].level;
+      }
+      return nextLevel;
+    },
     getClickDataOpera(json, params) {
+      //下钻时获取对应区域设备数量
+      this.convertAreaDeviceData();
       const mapData = this.convertMapData(json);
       const data = this.convertData(json);
+      const nextLevel = this.getNextLevel(json);
       this.ids.push(parseInt(params.data.id));
       let goDown = false;
       let current = "";
@@ -237,17 +531,17 @@ export default {
         goDown = false;
       }
       //如果是台湾省  不点下去 所以
-      //   if (params.data.id === 710000) {
-      //     goDown = false;
-      //   }
+      if (params.data.id === 710000) {
+        goDown = false;
+      }
       this.opt.push({
-        bgColor: "#154e90",
         mapName: params.data.id,
         mapData: mapData,
-        alarmData: this.alarmData,
+        deviceData: this.deviceData,
         data: data,
         goDown: goDown,
-        realtimeAlarmData: this.comfirmInMap()
+        realtimeAlarmData: this.comfirmInMap(),
+        nextLevel: nextLevel
       });
       this.$echarts.registerMap(params.data.id, json);
       let currentOpt = {};
@@ -256,11 +550,14 @@ export default {
       } else {
         currentOpt = this.opt[2];
       }
-      handleEvents.resetOption(this.myMap, getMapOption(currentOpt));
+      this.options = getMapOption(currentOpt);
+      handleEvents.resetOption(this.myMap, this.options);
+      this.setBar(data);
+      this.intervalToolTip(this.options);
     },
     //判断告警点是否在当前层级地图内
     comfirmInMap() {
-      let data = [];
+      const data = [];
       const len = this.ids.length;
       this.realtimeAlarmData.map(val => {
         if (len === 2) {
@@ -297,7 +594,7 @@ export default {
             name: val.properties.name,
             value: val.properties.center,
             id: val.id,
-            alarmNum: val.id ? this.alarmData[val.id] || 0 : undefined,
+            deviceNum: val.id ? this.deviceData[val.id] || 0 : undefined,
             level: val.level
           });
         });
@@ -310,42 +607,253 @@ export default {
       window.addEventListener("resize", this._listener);
     },
     resizeListener() {
+      const canvas = this.$refs["starCanvas"];
+      //画星空
+      starMap(canvas);
       this.myMap.resize();
+    },
+    getCastBarBoxHeight() {
+      this.barOutHeight = window.getComputedStyle(this.$refs["barbox"]).height;
     }
   },
   destroyed() {
     window.removeEventListener("resize", this._listener);
+    this.timeTicket && window.clearInterval(this.timeTicket);
+    this.timeoutTimer && window.clearTimeout(this.timeoutTimer);
+    this.barTimer && window.clearInterval(this.barTimer);
+    this.intervalTimer && window.clearInterval(this.intervalTimer);
   }
 };
 </script>
 
 <style lang="scss">
 .castscreen {
+  position: absolute;
+  min-width: 1366px;
+  width: 100%;
   height: 100%;
   display: flex;
   display: -webkit-flex;
-
-  .echartsmap {
-    flex: 1;
-    -webkit-flex: 1;
+  background-image: url("./assets/image/mapbg.jpg");
+  #loadingcanvas {
+    background: #000;
+    position: absolute;
     height: 100%;
-    position: relative;
-    #echarts-castscreen {
-      height: 100%;
-    }
-    .mapbreadcrumbcontainer {
+    width: 100%;
+    z-index: 10000;
+    canvas {
       position: absolute;
-      top: 30px;
-      left: 200px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+  .left {
+    height: 100%;
+    flex: 1;
+    display: flex;
+    display: -webkit-flex;
+    flex-direction: column;
+    .canvaszz {
+      width: 100%;
+      height: 100%;
+      background-image: url("./assets/image/mapbg.jpg");
+      background-size: 100% 100%;
+      position: absolute;
+      filter: alpha(opacity=40);
+      -moz-opacity: 0.4;
+      -khtml-opacity: 0.4;
+      opacity: 0.4;
+      z-index: 10;
+    }
+    #starCanvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+    }
+    .top {
+      position: absolute;
+      top: 20px;
+      width: 100%;
+      height: 80px;
       z-index: 1000;
-      display: flex;
-      display: -webkit-flex;
-      color: #ffffff;
-      font-size: 20px;
-      .geography {
-        cursor: pointer;
+      .topimg {
+        width: 1349px;
+        height: 80px;
+        background: url("./assets/image/castscreentitle.png");
+        margin: 0 auto;
       }
     }
+    .lefttop {
+      height: 100px;
+    }
+    .leftbottom {
+      flex: 10;
+      .echartsmap {
+        height: 100%;
+        position: relative;
+        z-index: 100;
+        #echarts-castscreen {
+          height: 100%;
+        }
+        .rightbox {
+          position: absolute;
+          top: 120px;
+          bottom: 40px;
+          width: 22%;
+          right: 40px;
+          display: flex;
+          display: -webkit-flex;
+          flex-direction: column;
+          .devicedata {
+            flex: 2;
+            margin-bottom: 20px;
+            position: relative;
+            background-image: url("./assets/image/deviceTotal.png");
+            background-size: 100% 100%;
+            .devicecontainer {
+              width: 76%;
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              text-align: center;
+              height: 48%;
+              display: flex;
+              display: -webkit-flex;
+              .devicedataall {
+                margin-right: 10%;
+              }
+              .devicecontainersame {
+                background-image: url("./assets/image/devicebox.png");
+                background-size: 100% 100%;
+                flex: 1;
+                display: flex;
+                display: -webkit-flex;
+                flex-direction: column;
+                .devicecontainersame-top {
+                  display: table-cell;
+                  vertical-align: bottom;
+                  flex: 3;
+                  font-size: 36px;
+                  color: #25c4d3;
+                  font-weight: bold;
+                  text-align: center;
+                  position: relative;
+                  top: 5px;
+                }
+                .devicecontainersame-bottom {
+                  flex: 2;
+                  font-size: 14px;
+                  color: #64afff;
+                  text-align: center;
+                }
+              }
+            }
+          }
+          .barcontainer {
+            background-image: url("./assets/image/deviceArea.png");
+            background-size: 100% 100%;
+            flex: 7;
+            position: relative;
+            padding: 60px 0 30px 0;
+            overflow: hidden;
+            .bartitle {
+              position: absolute;
+              top: 20px;
+              left: 10px;
+              height: 30px;
+              display: flex;
+              display: -webkit-flex;
+              .bartitleicon {
+                background: url("./assets/image/smokeicon.png") 0 0
+                  no-repeat;
+                width: 30px;
+                height: 30px;
+                margin-left: 30px;
+              }
+              .bartitlecontent {
+                margin-left: 10px;
+                font-size: 18px;
+                color: #64afff;
+                line-height: 30px;
+                height: 30px;
+              }
+            }
+            .echarts-castscreen-barbox {
+              width: 100%;
+              height: 100%;
+              padding-right: 30px;
+              #echarts-castscreen-bar {
+                width: 100%;
+              }
+            }
+          }
+        }
+        .mapbreadcrumbbox {
+          position: absolute;
+          top: 125px;
+          left: 60px;
+          z-index: 1001;
+          display: flex;
+          display: -webkit-flex;
+          .mapbreadcrumbboxtop {
+            position: absolute;
+            top: -6px;
+            left: 0;
+            background: url("./assets/image/bread1.png") 0 0 no-repeat;
+            height: 9px;
+            width: 86px;
+          }
+          .mapbreadcrumbboxleft {
+            width: 24px;
+            height: 50px;
+            background-image: url("./assets/image/bread3.png");
+            background-size: 100% 100%;
+          }
+          .mapbreadcrumbboxright {
+            width: 24px;
+            height: 50px;
+            background-image: url("./assets/image/bread4.png");
+            background-size: 100% 100%;
+          }
+          .mapbreadcrumbcontainer {
+            display: flex;
+            display: -webkit-flex;
+            color: #ffffff;
+            background-image: url("./assets/image/bread2.png");
+            background-size: 100% 100%;
+            font-size: 20px;
+            height: 50px;
+            .mapbreadcrumbicon {
+              background: url("./assets/image/breadicon.png") 0 0 no-repeat;
+              width: 18px;
+              height: 18px;
+              margin: 16px 10px 16px 0;
+            }
+            .geography {
+              font-size: 18px;
+              color: #64afff;
+              cursor: pointer;
+              height: 50px;
+              line-height: 50px;
+            }
+            .breadgeography {
+              font-size: 18px;
+              color: #64afff;
+              height: 50px;
+              line-height: 50px;
+              margin: 0 10px;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+@media screen and (max-width: 1440px) {
+  .devicecontainersame-top {
+    font-size: 24px !important;
   }
 }
 </style>

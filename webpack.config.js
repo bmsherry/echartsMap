@@ -1,17 +1,13 @@
 const path = require('path')
 const webpack = require('webpack')
-
-
-function resolve(dir) {
-  console.log(path.join(__dirname, '..', dir))
-  return path.join(__dirname, '..', dir)
-}
+const HtmlWebpackPlugin = require('html-webpack-plugin')
 
 module.exports = {
+  context: path.resolve(__dirname, './'),
   entry: './src/main.js',
   output: {
-    path: resolve('./dist'),
-    publicPath: '/dist/',
+    path: path.resolve(__dirname, './dist'),
+    publicPath: process.env.NODE_ENV !== 'development' ? './' : '/',
     filename: 'build.js'
   },
   module: {
@@ -88,7 +84,14 @@ module.exports = {
   performance: {
     hints: false
   },
-  devtool: '#eval-source-map'
+  devtool: '#eval-source-map',
+  plugins: [
+    new HtmlWebpackPlugin({
+      filename: 'index.html',
+      template: 'index.html',
+      inject: true
+    })
+  ]
 }
 
 if (process.env.NODE_ENV === 'production') {

@@ -1,16 +1,22 @@
-const convertData = function (data, alarmData) {
-  const res = [];
-  for (let i = 0; i < data.length; i++) {
-    const alarmDataSingle = alarmData[data[i].id];
-    if (alarmDataSingle) {
-      res.push({
-        name: data[i].name,
-        value: data[i].value.concat(alarmDataSingle)
-      });
-    }
+export const convertBarData = function (data, flag) {
+  const reData = []
+
+  if (flag === 'barData') {
+    data.map(val => {
+      reData.push({
+        name: val.name,
+        value: val.deviceNum
+      })
+    })
+  } else {
+    data.map(val => {
+      reData.push(
+        val.name
+      )
+    })
   }
-  return res;
-};
+  return reData
+}
 
 export const handleEvents = {
   /**
@@ -18,7 +24,7 @@ export const handleEvents = {
    * o option
    * n 地图名
    **/
-  resetOption: function (i, o, n) {
+  resetOption: function (i, o) {
     i.clear();
     i.setOption(o);
     this.zoomAnimation(i);
@@ -28,7 +34,7 @@ export const handleEvents = {
   initSeriesData: function (data) {
     const temp = [];
     for (let i = 0; i < data.length; i++) {
-      let geoCoord = geoCoordMap[data[i].name];
+      const geoCoord = geoCoordMap[data[i].name];
       if (geoCoord) {
         temp.push({
           name: data[i].name,
@@ -41,10 +47,9 @@ export const handleEvents = {
   //传入chart实例
   zoomAnimation: function (chart) {
     let count = null;
-    let zoom = function (per) {
+    const zoom = function (per) {
       if (!count) count = per;
       count = count + per;
-      // console.log(per,count);
       chart.setOption({
         geo: {
           zoom: count
@@ -63,22 +68,14 @@ export const getMapOption = (opt) => {
   const defaultOpt = {
     mapName: 100000, // 地图展示
     goDown: false, // 是否下钻
-    bgColor: '#404a59', // 画布背景色
+    bgColor: 'transparent', // 画布背景色
   };
   if (opt) {
     opt = Object.assign(defaultOpt, opt)
   };
-  const max = 400;
-  const min = 0; // todo 
-  const maxSize4Pin = 100;
-  const minSize4Pin = 20;
-  // style
-  const style = {
-    font: '18px "Microsoft YaHei", sans-serif',
-    textColor: '#eee',
-    lineColor: 'rgba(147, 235, 248, .8)'
-  };
   const options = {
+    nextLevel: opt.nextLevel,
+    adcode: opt.mapName,
     backgroundColor: opt.bgColor,
     geo: {
       map: opt.mapName,
@@ -88,27 +85,27 @@ export const getMapOption = (opt) => {
         show: true,
         color: "#fff"
       },
+      layoutCenter: ['40%', '50%'],
+      layoutSize: '110%',
       itemStyle: {
-        borderColor: "rgba(147, 235, 248, 1)",
+        borderColor: "rgba(50,129,241, 1)",
         borderWidth: 1,
+        //color: 'rgba(13,31,101,0.9)',
         areaColor: {
-          type: "radial",
+          type: 'radial',
           x: 0.5,
           y: 0.5,
           r: 0.8,
           colorStops: [{
-              offset: 0,
-              color: "rgba(147, 235, 248, 0)" // 0% 处的颜色
-            },
-            {
-              offset: 1,
-              color: "rgba(147, 235, 248, .2)" // 100% 处的颜色
-            }
-          ],
+            offset: 0,
+            color: 'rgba(13,31,101, 0)' // 0% 处的颜色
+          }, {
+            offset: 1,
+            color: 'rgba(13,31,101, 0.8)' // 100% 处的颜色
+          }],
           globalCoord: false // 缺省为 false
         },
-        shadowColor: "rgba(128, 217, 248, 1)",
-        // shadowColor: 'rgba(255, 255, 255, 1)',
+        shadowColor: "rgba(27,107,255, 0.4)",
         shadowOffsetX: -2,
         shadowOffsetY: 2,
         shadowBlur: 10,
@@ -118,7 +115,7 @@ export const getMapOption = (opt) => {
           color: "#fff"
         },
         itemStyle: {
-          areaColor: "#389BB7",
+          areaColor: "#2A71D5",
           borderWidth: 0
         }
 
@@ -126,13 +123,21 @@ export const getMapOption = (opt) => {
     },
     tooltip: {
       trigger: 'item',
+      borderColor: '#11BAFB',
+      backgroundColor: 'rgba(16,32,108,0.9)',
+      borderWidth: 1,
+      extraCssText: 'box-shadow:  0 0  20px rgb(16,137,250,0.5) inset ;',
+      textStyle: {
+        color: "#25C4D3",
+        fontSize: 18,
+      },
       formatter: function (params) {
-        if (typeof (params.value)[2] === "undefined" && params.data && params.data.alarmNum !== undefined) {
-          return `${params.name}:<br/>告警数量：${params.data.alarmNum}`;
+        if (typeof (params.value)[2] === "undefined" && params.data && params.data.deviceNum !== undefined) {
+          return `${params.name}:<br/>设备数量：${params.data.deviceNum}`;
         } else if (typeof (params.value)[2] === "undefined") {
           return '';
         } else {
-          return `${params.name}:<br/>告警数量：${params.value[2]}`;
+          return `${params.name}:<br/>设备数量：${params.value[2]}`;
         }
       }
     },
@@ -145,31 +150,6 @@ export const getMapOption = (opt) => {
         data: opt.data
       },
       {
-        name: '告警数量',
-        type: 'scatter',
-        coordinateSystem: 'geo',
-        symbol: 'pin',
-        symbolSize: function (val) {
-          let a = (maxSize4Pin - minSize4Pin) / (max - min);
-          let b = minSize4Pin - a * min;
-          b = maxSize4Pin - a * max;
-          return a * val[2] + b;
-        },
-        label: {
-          show: true,
-          color: '#fff',
-          fontSize: 9,
-          formatter: function (params) {
-            return params.value[2]
-          }
-        },
-        itemStyle: {
-          color: '#F62157', //标志颜色
-        },
-        zlevel: 6,
-        data: convertData(opt.data, opt.alarmData),
-      },
-      {
         type: "effectScatter",
         coordinateSystem: "geo",
         showEffectOn: "render",
@@ -180,13 +160,96 @@ export const getMapOption = (opt) => {
         },
         hoverAnimation: true,
         itemStyle: {
-          color: 'rgba(241, 109, 115, .8)',
+          color: 'rgba(255,31,31,0.20)',
           shadowBlur: 10,
-          shadowColor: "#333"
+          shadowColor: "#FF3E3E",
+          symbolSize: 60
         },
         data: opt.realtimeAlarmData || []
       }
     ]
   };
+  return options;
+}
+
+export const getBarOption = (data, yData) => {
+  const options = {
+    grid: {
+      left: 90,
+      top: 0,
+      right: 50,
+      bottom: 0,
+      tooltip: {
+        show: false
+      }
+    },
+    xAxis: {
+      type: 'value',
+      show: false
+    },
+    yAxis: {
+      type: 'category',
+      nameGap: 16,
+      axisLine: {
+        show: false,
+        lineStyle: {
+          color: '#ddd'
+        }
+      },
+      axisTick: {
+        show: false,
+        lineStyle: {
+          color: '#ddd'
+        }
+      },
+      axisLabel: {
+        interval: 0,
+        formatter: function (params) {
+          const len = params.length;
+          let label = "";
+          if (len < 5) {
+            label = params;
+          } else if (len > 4 && len < 9) {
+            label = `${params.substring(0,4)}\n${params.substring(4,len)}`
+          } else {
+            label = `${params.substring(0,4)}\n${params.substring(4,8)}\n${params.substring(8,len)}`
+          }
+          return label;
+        },
+        margin: 50,
+        align: 'left',
+        textStyle: {
+          color: '#64AFFF'
+        },
+      },
+      data: yData
+    },
+    series: [{
+      name: 'barSer',
+      type: 'bar',
+      roam: false,
+      visualMap: false,
+      zlevel: 2,
+      barMaxWidth: 20,
+      itemStyle: {
+        normal: {
+          color: '#22B8FF'
+        },
+        emphasis: {
+          color: "#3596c0"
+        }
+      },
+      label: {
+        normal: {
+          show: true,
+          position: 'right',
+          textStyle: {
+            color: '#64AFFF'
+          }
+        }
+      },
+      data: data
+    }, ]
+  }
   return options;
 }
