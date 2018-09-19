@@ -13,6 +13,9 @@ npm install or yarn install
 # 使用的时候请修改main.js中高德的key值。切换成你自己的key值
 npm run dev or yarn run dev
 
+#打包成静态文件
+npm run build or yarn run build
+
 ```
 
 ##主要功能点
@@ -24,6 +27,8 @@ npm run dev or yarn run dev
 #2.echarts绘制地图下钻。主要考虑到echarts中地图不再维护数据。所以从高德拿了数据映射过来。
 
 #3.vue-amap只是用于注册高德地图.
+
+#4.使用canvas绘制了一些动态效果
 
 
 ```
