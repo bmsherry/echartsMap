@@ -184,13 +184,61 @@ export default {
     },
     convertGeoJSON(copyJSON) {
       const geoJSON = [...copyJSON];
+      const geoCoord = [126, 25];
+      const points$1 = [
+        [
+          [0, 3.5],
+          [7, 11.2],
+          [15, 11.9],
+          [30, 7],
+          [42, 0.7],
+          [52, 0.7],
+          [56, 7.7],
+          [59, 0.7],
+          [64, 0.7],
+          [64, 0],
+          [5, 0],
+          [0, 3.5]
+        ],
+        [[13, 16.1], [19, 14.7], [16, 21.7], [11, 23.1], [13, 16.1]],
+        [[12, 32.2], [14, 38.5], [15, 38.5], [13, 32.2], [12, 32.2]],
+        [[16, 47.6], [12, 53.2], [13, 53.2], [18, 47.6], [16, 47.6]],
+        [[6, 64.4], [8, 70], [9, 70], [8, 64.4], [6, 64.4]],
+        [[23, 82.6], [29, 79.8], [30, 79.8], [25, 82.6], [23, 82.6]],
+        [[37, 70.7], [43, 62.3], [44, 62.3], [39, 70.7], [37, 70.7]],
+        [[48, 51.1], [51, 45.5], [53, 45.5], [50, 51.1], [48, 51.1]],
+        [[51, 35], [51, 28.7], [53, 28.7], [53, 35], [51, 35]],
+        [[52, 22.4], [55, 17.5], [56, 17.5], [53, 22.4], [52, 22.4]],
+        [[58, 12.6], [62, 7], [63, 7], [60, 12.6], [58, 12.6]],
+        [
+          [0, 3.5],
+          [0, 93.1],
+          [64, 93.1],
+          [64, 0],
+          [63, 0],
+          [63, 92.4],
+          [1, 92.4],
+          [1, 3.5],
+          [0, 3.5]
+        ]
+      ];
+      for (let i$1 = 0; i$1 < points$1.length; i$1++) {
+        for (let k = 0; k < points$1[i$1].length; k++) {
+          points$1[i$1][k][0] /= 10.5;
+          points$1[i$1][k][1] /= -10.5 / 0.75;
+
+          points$1[i$1][k][0] += geoCoord[0];
+          points$1[i$1][k][1] += geoCoord[1];
+        }
+      }
       const len = geoJSON.length;
       for (let i = 0; i < len; i++) {
         if (geoJSON[i].properties.adcode === 460000) {
           geoJSON[i].geometry.coordinates.length = 1;
+          geoJSON[i].geometry.coordinates.push(points$1);
+          geoJSON[i].properties.cp = geoJSON[i].properties.center;
           break;
         } else if (geoJSON[i].properties.adcode === 460300) {
-          geoJSON.splice(i, 1);
           break;
         }
       }
@@ -257,7 +305,7 @@ export default {
     setBar(data) {
       this.barTimer ? clearInterval(this.barTimer) : null;
       const len = data.length;
-      this.barHeight = `${len * 40 + 50}px`;
+      this.barHeight = `${len * 30 + 50}px`;
       this.barCharts = this.$echarts.init(
         document.getElementById("echarts-castscreen-bar")
       );
@@ -689,7 +737,7 @@ export default {
           font-size: 36px;
           font-weight: bold;
           color: #25c4d3;
-          line-height:80px;
+          line-height: 80px;
         }
       }
     }

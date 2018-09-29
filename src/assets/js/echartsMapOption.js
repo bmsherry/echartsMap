@@ -230,7 +230,7 @@ export const getBarOption = (data, yData) => {
       roam: false,
       visualMap: false,
       zlevel: 2,
-      barMaxWidth: 20,
+      barMaxWidth: 10,
       itemStyle: {
         normal: {
           color: '#22B8FF'
