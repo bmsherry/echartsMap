@@ -237,9 +237,26 @@ export default {
           geoJSON[i].geometry.coordinates.length = 1;
           geoJSON[i].geometry.coordinates.push(points$1);
           geoJSON[i].properties.cp = geoJSON[i].properties.center;
-          break;
-        } else if (geoJSON[i].properties.adcode === 460300) {
-          break;
+        } else if (geoJSON[i].properties.adcode === 440000) {
+          geoJSON[i].properties.cp = geoJSON[i].properties.center = [
+            113.380637,
+            23.445178
+          ];
+        } else if (geoJSON[i].properties.adcode === 810000) {
+          geoJSON[i].properties.cp = geoJSON[i].properties.center = [
+            114.873355,
+            22.590048
+          ];
+        } else if (geoJSON[i].properties.adcode === 820000) {
+          geoJSON[i].properties.cp = geoJSON[i].properties.center = [
+            113.44909,
+            21.798951
+          ];
+        } else if (geoJSON[i].properties.adcode === 130000) {
+          geoJSON[i].properties.cp = geoJSON[i].properties.center = [
+            115.102461,
+            38.345474
+          ];
         }
       }
       const json = {
